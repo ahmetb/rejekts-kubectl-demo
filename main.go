@@ -1,13 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/client-go/rest"
 	kubectlget "k8s.io/kubectl/pkg/cmd/get"
+	"k8s.io/kubectl/pkg/scheme"
 )
 
 func main() {
@@ -24,13 +27,26 @@ func main() {
 	if err != nil { panic(err) }
 
 
-	builder := resource.NewBuilder(configFlags)
-	err = builder.
-	 	Unstructured().
-		//WithScheme(scheme.Scheme, scheme.Scheme.PrioritizedVersionsAllGroups()...).
-		ResourceTypeOrNameArgs(true, pflag.Args()...).
-		Do().Visit(func(info *resource.Info, err error) error {
+	builder := resource.NewBuilder(configFlags).
+		ResourceTypeOrNameArgs(true, pflag.Args()...)
+
+	// If human-readable output format, enable server-side Table printing
+	isHumanOutput := *printFlags.OutputFormat == "" || *printFlags.OutputFormat == "wide"
+
+	if isHumanOutput {
+		builder.
+			WithScheme(scheme.Scheme, scheme.Scheme.PrioritizedVersionsAllGroups()...).
+			TransformRequests(func(r *rest.Request) {
+				r.SetHeader("Accept", "application/json;as=Table;v=v1;g=meta.k8s.io,application/json")
+			}).Flatten()
+	} else {
+		builder.Unstructured()
+	}
+
+	err = builder.Do().Visit(func(info *resource.Info, err error) error {
 			if err != nil { panic(err) }
+
+			fmt.Fprintf(os.Stderr,"Object: %T\n", info.Object)
 
 			// Print the response object
 			return printer.PrintObj(info.Object, os.Stdout)
