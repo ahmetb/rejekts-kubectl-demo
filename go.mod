@@ -1,11 +1,10 @@
-module demo
+module kubectl-demo
 
 go 1.23.2
 
 require (
 	github.com/spf13/pflag v1.0.5
 	k8s.io/cli-runtime v0.31.2
-	k8s.io/kubectl v0.31.2
 )
 
 require (
