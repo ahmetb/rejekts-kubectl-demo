@@ -11,18 +11,35 @@ import (
 func main() {
 	configFlags := genericclioptions.NewConfigFlags(true)
 	configFlags.AddFlags(pflag.CommandLine)
+
+	// 1. Define the namespace flag
+	allNamespaces := pflag.BoolP("all-namespaces", "A", false,
+		"If present, list the requested object(s) across all namespaces.")
 	pflag.Parse()
 
+	// 2. Read the namespace preference from kubeconfig
+	kubeconfigNamespace, _, err := configFlags.ToRawKubeConfigLoader().Namespace()
+	if err != nil { panic(err) }
+
+	var namespace string
+	if *configFlags.Namespace != "" {
+		// -n flag takes precedence
+		namespace = *configFlags.Namespace
+	} else if kubeconfigNamespace != "" {
+		// kubeconfig namespace is used if -n flag is not set
+		namespace = kubeconfigNamespace
+	}
+
 	builder := resource.NewBuilder(configFlags)
-	err := builder.AllNamespaces(true).
+	err = builder.
+		NamespaceParam(namespace).DefaultNamespace().AllNamespaces(*allNamespaces).
 		Unstructured().
 		ResourceTypeOrNameArgs(true, pflag.Args()...).
 		Flatten().
 		Do().Visit(func(info *resource.Info, err error) error {
 			if err != nil { panic(err) }
 
-			fmt.Printf("namespace=%s, name=%s, obj=%T\n",
-				info.Namespace, info.Name, info.Object)
+			fmt.Printf("namespace=%s, name=%s\n", info.Namespace, info.Name)
 			return nil
 		})
 	if err != nil { panic(err) }
