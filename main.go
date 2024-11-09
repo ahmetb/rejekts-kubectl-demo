@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/resource"
-	"k8s.io/kubectl/pkg/scheme"
 )
 
 func main() {
@@ -16,7 +15,7 @@ func main() {
 
 	builder := resource.NewBuilder(configFlags)
 	err := builder.AllNamespaces(true).
-		WithScheme(scheme.Scheme, scheme.Scheme.PrioritizedVersionsAllGroups()...).
+		Unstructured().
 		ResourceTypeOrNameArgs(true, pflag.Args()...).
 		Flatten().
 		Do().Visit(func(info *resource.Info, err error) error {
