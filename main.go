@@ -1,44 +1,46 @@
 package main
 
 import (
-	"fmt"
+	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/resource"
+	kubectlget "k8s.io/kubectl/pkg/cmd/get"
 )
 
 func main() {
 	configFlags := genericclioptions.NewConfigFlags(true)
 	configFlags.AddFlags(pflag.CommandLine)
 
-	// 1. Define the namespace flag
-	allNamespaces := pflag.BoolP("all-namespaces", "A", false, "If present, list the requested object(s) across all namespaces.")
+	// register the print flags of "kubectl get"
+	printFlags := addPrintFlags(pflag.CommandLine)
+
 	pflag.Parse()
 
-	// 2. Read the namespace preference from kubeconfig
-	kubeconfigNamespace, _, err := configFlags.ToRawKubeConfigLoader().Namespace()
+	// initialize printer
+	printer, err := printFlags.ToPrinter()
 	if err != nil { panic(err) }
-
-	var namespace string
-	if *configFlags.Namespace != "" {
-		namespace = *configFlags.Namespace // -n flag takes precedence
-	} else if kubeconfigNamespace != "" {
-		namespace = kubeconfigNamespace // kubeconfig namespace is used if -n flag is not set
-	}
 
 
 	builder := resource.NewBuilder(configFlags)
-	err = builder.
-		NamespaceParam(namespace).DefaultNamespace().AllNamespaces(*allNamespaces).
-		Unstructured().
+	err = builder.Unstructured().
 		ResourceTypeOrNameArgs(true, pflag.Args()...).
-		Flatten().
 		Do().Visit(func(info *resource.Info, err error) error {
 			if err != nil { panic(err) }
 
-			fmt.Printf("namespace=%s, name=%s\n", info.Namespace, info.Name)
-			return nil
+			// Print the response object
+			return printer.PrintObj(info.Object, os.Stdout)
 		})
 	if err != nil { panic(err) }
+}
+
+
+func addPrintFlags(flagSet *pflag.FlagSet) *kubectlget.PrintFlags {
+	dummyCobraCmd := &cobra.Command{}
+	printFlags := kubectlget.NewGetPrintFlags()
+	printFlags.AddFlags(dummyCobraCmd)
+	flagSet.AddFlagSet(dummyCobraCmd.Flags())
+	return printFlags
 }
