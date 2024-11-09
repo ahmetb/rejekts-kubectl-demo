@@ -5,7 +5,8 @@ import (
 
 	"github.com/spf13/pflag"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/cli-runtime/pkg/resource"
+	"k8s.io/kubectl/pkg/scheme"
 )
 
 func main() {
@@ -13,16 +14,17 @@ func main() {
 	configFlags.AddFlags(pflag.CommandLine)
 	pflag.Parse()
 
-	// Print Kubernetes server version
-	// Build the Kubernetes client configuration
-	config, err := configFlags.ToRESTConfig()
-	if err != nil { panic(err) }
+	builder := resource.NewBuilder(configFlags)
+	err := builder.
+		WithScheme(scheme.Scheme, scheme.Scheme.PrioritizedVersionsAllGroups()...).
+		ResourceTypeOrNameArgs(true, pflag.Args()...).
+		Flatten().
+		Do().Visit(func(info *resource.Info, err error) error {
+			if err != nil { panic(err) }
 
-	// Create the Kubernetes client
-	clientset, err := kubernetes.NewForConfig(config)
+			fmt.Printf("namespace=%s, name=%s, obj=%T\n",
+				info.Namespace, info.Name, info.Object)
+			return nil
+		})
 	if err != nil { panic(err) }
-
-	versionInfo, err := clientset.Discovery().ServerVersion()
-	if err != nil { panic(err) }
-	fmt.Printf("Kubernetes server version: %s\n", versionInfo.GitVersion)
 }
